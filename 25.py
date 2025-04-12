@@ -1040,80 +1040,79 @@ class DietCalculatorApp:
         self.materials_widgets.append((material_combobox, percentage_entry))
 
     def calculate_diet(self):
-     """محاسبه جیره بر اساس مواد اولیه و درصدهای وارد شده"""
-    try:
-        selected_species = self.species_combobox.get()  # مطمئن شوید که این خط در داخل متد است
-        if selected_species not in species_data:
-            raise ValueError("گونه نامعتبر است.")
+        """محاسبه جیره بر اساس مواد اولیه و درصدهای وارد شده"""
+        try:
+            selected_species = self.species_combobox.get()
+            if selected_species not in species_data:
+                raise ValueError("گونه نامعتبر است.")
 
-        # جمع‌آوری اطلاعات مواد اولیه و درصدها
-        material_weights = {}
-        total_percentage = 0  # جمع درصد کل مواد اولیه
-        for combobox, entry in self.materials_widgets:
-            material = combobox.get()
-            if material not in materials_data:
-                raise ValueError(f"ماده اولیه '{material}' نامعتبر است.")
-            try:
-                weight = float(entry.get())
-                if weight < 0 or weight > 100:
-                    raise ValueError("درصد وزنی باید بین 0 و 100 باشد.")
-                total_percentage += weight
-                material_weights[material] = weight / 100  # تبدیل به درصد
-            except ValueError:
-                raise ValueError("درصد وزنی باید یک عدد معتبر باشد.")
+            # جمع‌آوری اطلاعات مواد اولیه و درصدها
+            material_weights = {}
+            total_percentage = 0  # جمع درصد کل مواد اولیه
+            for combobox, entry in self.materials_widgets:
+                material = combobox.get()
+                if material not in materials_data:
+                    raise ValueError(f"ماده اولیه '{material}' نامعتبر است.")
+                try:
+                    weight = float(entry.get())
+                    if weight < 0 or weight > 100:
+                        raise ValueError("درصد وزنی باید بین 0 و 100 باشد.")
+                    total_percentage += weight
+                    material_weights[material] = weight / 100  # تبدیل به درصد
+                except ValueError:
+                    raise ValueError("درصد وزنی باید یک عدد معتبر باشد.")
 
-        # بررسی اینکه مجموع درصدها از 100 بیشتر نباشد
-        if total_percentage > 100:
-            raise ValueError("مجموع درصد مواد اولیه نباید از 100 بیشتر باشد.")
+            # بررسی اینکه مجموع درصدها از 100 بیشتر نباشد
+            if total_percentage > 100:
+                raise ValueError("مجموع درصد مواد اولیه نباید از 100 بیشتر باشد.")
 
-        # محاسبه جیره
-        final_composition = {}
-        for material, weight in material_weights.items():
-            for param, value in materials_data[material].items():
-                if "(%)" in param:
-                    # پارامتر درصدی
-                    final_composition[param] = final_composition.get(param, 0) + value * weight
-                else:
-                    # پارامتر غیر درصدی (تبدیل به واحد مناسب)
-                    final_composition[param] = final_composition.get(param, 0) + value * weight * 1000
+            # محاسبه جیره
+            final_composition = {}
+            for material, weight in material_weights.items():
+                for param, value in materials_data[material].items():
+                    if "(%)" in param:
+                        # پارامتر درصدی
+                        final_composition[param] = final_composition.get(param, 0) + value * weight
+                    else:
+                        # پارامتر غیر درصدی (تبدیل به واحد مناسب)
+                        final_composition[param] = final_composition.get(param, 0) + value * weight * 1000
 
-        # مقایسه با استاندارد گونه
-        standard_data = species_data[selected_species]
-        comparison = {
-            param: {
-                "calculated": final_composition.get(param, 0),
-                "standard": standard_data.get(param, 0),
-                "difference": final_composition.get(param, 0) - standard_data.get(param, 0)
+            # مقایسه با استاندارد گونه
+            standard_data = species_data[selected_species]
+            comparison = {
+                param: {
+                    "calculated": final_composition.get(param, 0),
+                    "standard": standard_data.get(param, 0),
+                    "difference": final_composition.get(param, 0) - standard_data.get(param, 0)
+                }
+                for param in set(final_composition.keys()).union(standard_data.keys())
             }
-            for param in set(final_composition.keys()).union(standard_data.keys())
-        }
 
-        # پاک کردن جدول قدیمی
-        for item in self.results_table.get_children():
-            self.results_table.delete(item)
+            # پاک کردن جدول قدیمی
+            for item in self.results_table.get_children():
+                self.results_table.delete(item)
 
-        # مرتب‌سازی نتایج بر اساس ترتیب استاندارد
-        sorted_params = sorted(comparison.keys(), key=lambda x: self.standard_order.index(x) if x in self.standard_order else float('inf'))
+            # مرتب‌سازی نتایج بر اساس ترتیب استاندارد
+            sorted_params = sorted(comparison.keys(), key=lambda x: self.standard_order.index(x) if x in self.standard_order else float('inf'))
 
-        # نمایش نتایج در جدول
-        for param in sorted_params:
-            values = comparison[param]
-            tag = None
-            if values["difference"] < 0:
-                tag = "less_than"
-            elif values["difference"] > 0:
-                tag = "greater_than"
+            # نمایش نتایج در جدول
+            for param in sorted_params:
+                values = comparison[param]
+                tag = None
+                if values["difference"] < 0:
+                    tag = "less_than"
+                elif values["difference"] > 0:
+                    tag = "greater_than"
 
-            self.results_table.insert("", "end", values=(
-                param,
-                round(values["calculated"], 2),
-                round(values["standard"], 2),
-                round(values["difference"], 2)
-            ), tags=(tag,))
+                self.results_table.insert("", "end", values=(
+                    param,
+                    round(values["calculated"], 2),
+                    round(values["standard"], 2),
+                    round(values["difference"], 2)
+                ), tags=(tag,))
 
-    except ValueError as e:
-        messagebox.showerror("خطا", str(e))
-#پایان
+        except ValueError as e:
+            messagebox.showerror("خطا", str(e))
 
 if __name__ == "__main__":
     root = tk.Tk()
