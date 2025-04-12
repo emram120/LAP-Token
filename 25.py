@@ -1040,9 +1040,9 @@ class DietCalculatorApp:
         self.materials_widgets.append((material_combobox, percentage_entry))
 
     def calculate_diet(self):
-    """محاسبه جیره بر اساس مواد اولیه و درصدهای وارد شده"""
+     """محاسبه جیره بر اساس مواد اولیه و درصدهای وارد شده"""
     try:
-        selected_species = self.species_combobox.get()
+        selected_species = self.species_combobox.get()  # مطمئن شوید که این خط در داخل متد است
         if selected_species not in species_data:
             raise ValueError("گونه نامعتبر است.")
 
