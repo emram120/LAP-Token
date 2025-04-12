@@ -1113,7 +1113,7 @@ class DietCalculatorApp:
 
     except ValueError as e:
         messagebox.showerror("خطا", str(e))
-
+#پایان
 
 if __name__ == "__main__":
     root = tk.Tk()
