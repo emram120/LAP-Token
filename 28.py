@@ -1,130 +1,111 @@
+
 import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
-import sqlite3
-from datetime import datetime
-import pandas as pd  # برای خروجی اکسل
+from tkinter import ttk, messagebox
 from bidi.algorithm import get_display
 import arabic_reshaper
+import openpyxl
+from openpyxl.styles import Alignment
+from tkinter import filedialog
 
-
-# تابع برای اصلاح متن فارسی جهت نمایش صحیح در رابط کاربری
+# تابع برای اصلاح نمایش متن فارسی
 def reshape_text(text):
     reshaped_text = get_display(arabic_reshaper.reshape(text))
-    return text if not text else reshaped_text
-
-
-# اتصال به پایگاه داده SQLite
-def connect_database():
-    """
-    اتصال به پایگاه داده SQLite و ایجاد جدول در صورت عدم وجود
-    """
-    conn = sqlite3.connect("diets.db")  # فایل پایگاه داده
-    cursor = conn.cursor()
-    # ایجاد جدول برای ذخیره اطلاعات جیره‌ها
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS diets (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        species TEXT,
-        materials TEXT,
-        percentages TEXT,
-        results TEXT,
-        date TEXT
-    )
-    """)
-    conn.commit()
-    return conn, cursor
+    return reshaped_text
 
 # اطلاعات مربوط به مواد اولیه
 materials_data = {
-    "کنجاله سویا": {
-        "پروتئین خام (%)": 48,
-        "لیپیدهای خام (%)": 1.5,
-        "چربی خام (%)": 1.5,
-        "فیبر خام (%)": 3.5,
-        "خاکستر (%)": 6.5,
-        "انرژی ناخالص (kc/k)": 3100,
-        "آرژنین (%)": 3.2,
-        "لیزین (%)": 2.7,
-        "متیونین (%)": 0.7,
-        "کلسیم (%)": 0.3,
-        "فسفر (%)": 0.65,
-        "سدیم (%)": 0.02,
-        "کلر (%)": 0,
-        "پتاسیم (%)": 2.0,
-        "منیزیم (%)": 0.35,
-        "مس (mg/kg)": 20,
-        "گوگرد (%)": 0.4,
-        "آهن (mg/kg)": 100,
-        "منگنز (mg/kg)": 30,
-        "سلنیوم (mg/kg)": 0.2,
-        "روی (mg/kg)": 60,
-        "ید (mg/kg)": 0.5,
-        "کبالت (mg/kg)": 0.1,
-        "ویتامین C (mg/kg)": 200,
-        "بیوتین-B7 (mg/kg)": 0.1,
-        "اسید فولیک-B9 (mg/kg)": 2.0,
-        "نیاسین-B3 (mg/kg)": 30,
-        "پانتوتنیک اسید-B5 (mg/kg)": 15,
-        "پیریدوکسین-B6 (mg/kg)": 5,
-        "ریبوفلاوین-B2 (mg/kg)": 4,
-        "تیامین-B1 (mg/kg)": 3,
-        "ویتامین B12 (mg/kg)": 0.01,
-        "ویتامین A (IU/kg)": 5000,
-        "ویتامین D (IU/kg)": 2000,
-        "ویتامین E (mg/kg)": 50,
-        "ویتامین K (mg/kg)": 2,
-        "کولین (mg/kg)": 2000,
-        "اینوزیتول (mg/kg)": 1000,
-        "مجموع n-3 (%)": 0.1,
-        "جمع n-6 (%)": 2.8,
-        "فسفولیپیدها (%)": 2.5,
-        "کلسترول (mg/kg)": 100,
+  "کنجاله سویا": {
+    "پروتئین خام (%)": 48,
+    "لیپیدهای خام (%)": 1.5,
+    "چربی خام (%)": 1.5,
+    "فیبر خام (%)": 3.5,
+    "خاکستر (%)": 6.5,
+    "نشاسته (%)": 2.5,
+    "انرژی ناخالص (kc/k)": 3100,
+    "آرژنین (%)": 3.2,
+    "لیزین (%)": 2.7,
+    "متیونین (%)": 0.7,
+    "کلسیم (%)": 0.3,
+    "فسفر (%)": 0.65,
+    "سدیم (%)": 0.02,
+    "کلر (%)": 0,
+    "پتاسیم (%)": 2.0,
+    "منیزیم (%)": 0.35,
+    "مس (mg/kg)": 20,
+    "گوگرد (%)": 0.4,
+    "آهن (mg/kg)": 100,
+    "منگنز (mg/kg)": 30,
+    "سلنیوم (mg/kg)": 0.2,
+    "روی (mg/kg)": 60,
+    "ید (mg/kg)": 0.5,
+    "کبالت (mg/kg)": 0.1,
+    "ویتامین C (mg/kg)": 200,
+    "بیوتین-B7 (mg/kg)": 0.1,
+    "اسید فولیک-B9 (mg/kg)": 2.0,
+    "نیاسین-B3 (mg/kg)": 30,
+    "پانتوتنیک اسید-B5 (mg/kg)": 15,
+    "پیریدوکسین-B6 (mg/kg)": 5,
+    "ریبوفلاوین-B2 (mg/kg)": 4,
+    "تیامین-B1 (mg/kg)": 3,
+    "ویتامین B12 (mg/kg)": 0.01,
+    "ویتامین A (IU/kg)": 5000,
+    "ویتامین D (IU/kg)": 2000,
+    "ویتامین E (mg/kg)": 50,
+    "ویتامین K (mg/kg)": 2,
+    "کولین (mg/kg)": 2000,
+    "اینوزیتول (mg/kg)": 1000,
+    "مجموع n-3 (%)": 0.1,
+    "جمع n-6 (%)": 2.8,
+    "فسفولیپیدها (%)": 2.5,
+    "کلسترول (mg/kg)": 100,
     },
     "پودر ماهی": {
-        "پروتئین خام (%)": 65,
-        "لیپیدهای خام (%)": 8,
-        "چربی خام (%)": 8,
-        "فیبر خام (%)": 0,
-        "خاکستر (%)": 15,
-        "انرژی ناخالص (kc/k)": 4500,
-        "آرژنین (%)": 4.5,
-        "لیزین (%)": 5.5,
-        "متیونین (%)": 2.2,
-        "کلسیم (%)": 5.5,
-        "فسفر (%)": 3.0,
-        "سدیم (%)": 0.4,
-        "کلر (%)": 0,
-        "پتاسیم (%)": 0.9,
-        "منیزیم (%)": 0.12,
-        "مس (mg/kg)": 5,
-        "گوگرد (%)": 0.3,
-        "آهن (mg/kg)": 120,
-        "منگنز (mg/kg)": 10,
-        "سلنیوم (mg/kg)": 0.4,
-        "روی (mg/kg)": 80,
-        "ید (mg/kg)": 1.2,
-        "کبالت (mg/kg)": 0.05,
-        "ویتامین C (mg/kg)": 50,
-        "بیوتین-B7 (mg/kg)": 0.2,
-        "اسید فولیک-B9 (mg/kg)": 1.5,
-        "نیاسین-B3 (mg/kg)": 20,
-        "پانتوتنیک اسید-B5 (mg/kg)": 10,
-        "پیریدوکسین-B6 (mg/kg)": 3.5,
-        "ریبوفلاوین-B2 (mg/kg)": 2.5,
-        "تیامین-B1 (mg/kg)": 1.5,
-        "ویتامین B12 (mg/kg)": 0.02,
-        "ویتامین A (IU/kg)": 20000,
-        "ویتامین D (IU/kg)": 4000,
-        "ویتامین E (mg/kg)": 30,
-        "ویتامین K (mg/kg)": 1.5,
-        "کولین (mg/kg)": 1000,
-        "اینوزیتول (mg/kg)": 500,
-        "مجموع n-3 (%)": 1.5,
-        "جمع n-6 (%)": 0.5,
-        "فسفولیپیدها (%)": 3,
-        "کلسترول (mg/kg)": 150,
+    "پروتئین خام (%)": 65,
+    "لیپیدهای خام (%)": 8,
+    "چربی خام (%)": 8,
+    "فیبر خام (%)": 0,
+    "خاکستر (%)": 15,
+    "نشاسته (%)": 0,
+    "انرژی ناخالص (kc/k)": 4500,
+    "آرژنین (%)": 4.5,
+    "لیزین (%)": 5.5,
+    "متیونین (%)": 2.2,
+    "کلسیم (%)": 5.5,
+    "فسفر (%)": 3.0,
+    "سدیم (%)": 0.4,
+    "کلر (%)": 0,
+    "پتاسیم (%)": 0.9,
+    "منیزیم (%)": 0.12,
+    "مس (mg/kg)": 5,
+    "گوگرد (%)": 0.3,
+    "آهن (mg/kg)": 120,
+    "منگنز (mg/kg)": 10,
+    "سلنیوم (mg/kg)": 0.4,
+    "روی (mg/kg)": 80,
+    "ید (mg/kg)": 1.2,
+    "کبالت (mg/kg)": 0.05,
+    "ویتامین C (mg/kg)": 50,
+    "بیوتین-B7 (mg/kg)": 0.2,
+    "اسید فولیک-B9 (mg/kg)": 1.5,
+    "نیاسین-B3 (mg/kg)": 20,
+    "پانتوتنیک اسید-B5 (mg/kg)": 10,
+    "پیریدوکسین-B6 (mg/kg)": 3.5,
+    "ریبوفلاوین-B2 (mg/kg)": 2.5,
+    "تیامین-B1 (mg/kg)": 1.5,
+    "ویتامین B12 (mg/kg)": 0.02,
+    "ویتامین A (IU/kg)": 20000,
+    "ویتامین D (IU/kg)": 4000,
+    "ویتامین E (mg/kg)": 30,
+    "ویتامین K (mg/kg)": 1.5,
+    "کولین (mg/kg)": 1000,
+    "اینوزیتول (mg/kg)": 500,
+    "مجموع n-3 (%)": 1.5,
+    "جمع n-6 (%)": 0.5,
+    "فسفولیپیدها (%)": 3,
+    "کلسترول (mg/kg)": 150,
+
     },
-    "آرد گندم": {
+        "آرد گندم": {
         "پروتئین خام (%)": 11,
         "لیپیدهای خام (%)": 1.5,
         "چربی خام (%)": 1.5,
@@ -168,7 +149,7 @@ materials_data = {
         "فسفولیپیدها (%)": 0,
         "کلسترول (mg/kg)": 0,
     },
-    "پودر گوشت 50 درصد": {
+        "پودر گوشت 50 درصد": {
         "پروتئین خام (%)": 50.2,
         "لیپیدهای خام (%)": 10.01,
         "فیبر خام (%)": 2.32,
@@ -273,7 +254,7 @@ materials_data = {
         "فسفولیپیدها (%)": 0,
         "کلسترول (mg/kg)": 0,
     },
-    "گلوتن ذرت 50 درصد": {
+        "گلوتن ذرت 50 درصد": {
         "پروتئین خام (%)": 51.3,
         "لیپیدهای خام (%)": 7.8,
         "فیبر خام (%)": 2.1,
@@ -334,7 +315,7 @@ materials_data = {
         "فسفولیپیدها (%)": 0.02,
         "کلسترول (mg/kg)": 571.35,
     },
-    "گلوتن گندم 78 درصد": {
+      "گلوتن گندم 78 درصد": {
         "پروتئین خام (%)": 78.17,
         "لیپیدهای خام (%)": 2.4,
         "فیبر خام (%)": 0.43,
@@ -395,7 +376,7 @@ materials_data = {
         "فسفولیپیدها (%)": 0.16,
         "کلسترول (mg/kg)": 800,
     },
-    "روغن سویا": {
+     "روغن سویا": {
         "پروتئین خام (%)": 0,
         "لیپیدهای خام (%)": 99,
         "فیبر خام (%)": 0,
@@ -500,7 +481,7 @@ materials_data = {
         "فسفولیپیدها (%)": 2.5,
         "کلسترول (mg/kg)": 100,
     },
-    "دی کلسیوم فسفات": {
+        "دی کلسیوم فسفات": {
         "پروتئین خام (%)": 0,
         "لیپیدهای خام (%)": 0,
         "فیبر خام (%)": 0,
@@ -561,7 +542,7 @@ materials_data = {
         "فسفولیپیدها (%)": 0,
         "کلسترول (mg/kg)": 0,
     },
-    "ال-آرژنین": {
+        "ال-آرژنین": {
         "پروتئین خام (%)": 98,
         "لیپیدهای خام (%)": 0,
         "فیبر خام (%)": 0,
@@ -805,7 +786,7 @@ materials_data = {
     "فسفولیپیدها (%)": 0,
     "کلسترول (mg/kg)": 0
 },
-    "ال-ترئونین" : {
+"ال-ترئونین" : {
     "پروتئین خام (%)": 70.9,
     "لیپیدهای خام (%)": 0,
     "فیبر خام (%)": 0,
@@ -866,7 +847,7 @@ materials_data = {
     "فسفولیپیدها (%)": 0,
     "کلسترول (mg/kg)": 0
 },
-    "ال-تریپتوفان" : {
+"ال-تریپتوفان" : {
     "پروتئین خام (%)": 82.5,
     "لیپیدهای خام (%)": 0,
     "فیبر خام (%)": 0,
@@ -931,13 +912,14 @@ materials_data = {
 }
 
 species_data = {
-    "Seabass": {
+    "Seabass 60-100g (Grower)": {
         "پروتئین خام (%)": 46,
         "لیپیدهای خام (%)": 13,
         "چربی خام (%)": 13,
-        "فیبر خام (%)": 7,
-        "خاکستر (%)": 12,
+        "فیبر خام (%)": 3,
+        "خاکستر (%)": 10,
         "انرژی ناخالص (kc/k)": 3793,
+        "نشاسته (%)": 14,
         "آرژنین (%)": 2.5,
         "لیزین (%)": 3.5,
         "متیونین (%)": 0.9,
@@ -971,86 +953,95 @@ species_data = {
         "کولین (mg/kg)": 2200,
         "اینوزیتول (mg/kg)": 1200
     }
+    
 }
 
-
-# تابع دسته‌بندی پارامترها
-def categorize_parameters(materials_data):
-    """دسته‌بندی پارامترها به درصدی و غیر درصدی"""
-    percentage_params = set()
-    non_percentage_params = set()
-
-    for material, params in materials_data.items():
-        for param in params.keys():
-            if "(%)" in param:  # شناسایی پارامترهای درصدی
-                percentage_params.add(param)
-            else:  # شناسایی پارامترهای غیر درصدی
-                non_percentage_params.add(param)
-
-    return percentage_params, non_percentage_params
-     
-# کلاس اصلی برنامه
 class DietCalculatorApp:
     def __init__(self, root):
         self.root = root
         self.root.title("محاسبه جیره غذایی")
 
-        # اتصال به پایگاه داده
-        self.conn, self.cursor = connect_database()
-
-        # دسته‌بندی پارامترها
-        self.percentage_params, self.non_percentage_params = categorize_parameters(materials_data)
-
-        # ترتیب استاندارد پارامترها (برای مرتب‌سازی نتایج)
+        # ترتیب استاندارد پارامترها
         self.standard_order = [
             "پروتئین خام (%)",
             "لیپیدهای خام (%)",
             "چربی خام (%)",
             "فیبر خام (%)",
             "خاکستر (%)",
+            "نشاسته (%)",
             "انرژی ناخالص (kc/k)",
+            "آرژنین (%)",
+            "لیزین (%)",
+            "متیونین (%)",
+            "کلسیم (%)",
+            "فسفر (%)",
+            "سدیم (%)",
+            "کلر (%)",
+            "پتاسیم (%)",
+            "منیزیم (%)",
             "مس (mg/kg)",
+            "گوگرد (%)",
+            "آهن (mg/kg)",
+            "منگنز (mg/kg)",
+            "سلنیوم (mg/kg)",
+            "روی (mg/kg)",
+            "ید (mg/kg)",
+            "کبالت (mg/kg)",
+            "ویتامین C (mg/kg)",
+            "بیوتین-B7 (mg/kg)",
+            "اسید فولیک-B9 (mg/kg)",
+            "نیاسین-B3 (mg/kg)",
+            "پانتوتنیک اسید-B5 (mg/kg)",
+            "پیریدوکسین-B6 (mg/kg)",
+            "ریبوفلاوین-B2 (mg/kg)",
+            "تیامین-B1 (mg/kg)",
+            "ویتامین B12 (mg/kg)",
+            "ویتامین A (IU/kg)",
+            "ویتامین D (IU/kg)",
+            "ویتامین E (mg/kg)",
+            "ویتامین K (mg/kg)",
+            "کولین (mg/kg)",
+            "اینوزیتول (mg/kg)",
+            "مجموع n-3 (%)",
+            "جمع n-6 (%)",
+            "فسفولیپیدها (%)",
+            "کلسترول (mg/kg)"
         ]
 
-        # رابط کاربری: انتخاب گونه
+        # انتخاب گونه
         tk.Label(root, text=reshape_text("گونه:")).grid(row=0, column=0, padx=5, pady=5)
         self.species_combobox = ttk.Combobox(root, values=list(species_data.keys()))
         self.species_combobox.grid(row=0, column=1, padx=5, pady=5)
-        self.species_combobox.set("Seabass")  # مقدار پیش‌فرض
+        self.species_combobox.set("")  # مقدار پیش‌فرض
 
-        # رابط کاربری: جدول مواد اولیه
+        # جدول مواد اولیه
         self.materials_frame = tk.Frame(root)
-        self.materials_frame.grid(row=1, column=0, columnspan=5, padx=5, pady=5)
+        self.materials_frame.grid(row=1, column=0, columnspan=2, padx=5, pady=5)
         self.materials_widgets = []
-        self.add_material_row()  # اضافه کردن اولین ردیف مواد اولیه
+        self.add_material_row()  # اضافه کردن اولین ردیف
 
         # دکمه‌ها
         tk.Button(root, text=reshape_text("اضافه کردن ماده اولیه"), command=self.add_material_row).grid(row=2, column=0, padx=5, pady=5)
         tk.Button(root, text=reshape_text("محاسبه جیره"), command=self.calculate_diet).grid(row=2, column=1, padx=5, pady=5)
-        tk.Button(root, text=reshape_text("مشاهده جیره‌های ذخیره‌شده"), command=self.show_saved_diets).grid(row=2, column=2, padx=5, pady=5)
-        tk.Button(root, text=reshape_text("خروجی اکسل"), command=self.export_to_excel).grid(row=2, column=3, padx=5, pady=5)
-        tk.Button(root, text=reshape_text("حذف همه داده‌ها"), command=self.clear_all_data).grid(row=2, column=4, padx=5, pady=5)
 
         # جدول نمایش نتایج
         self.results_table = ttk.Treeview(root, columns=("param", "calculated", "standard", "difference"), show="headings", height=15)
-        self.results_table.grid(row=3, column=0, columnspan=5, padx=5, pady=5)
+        self.results_table.grid(row=3, column=0, columnspan=2, padx=5, pady=5)
         self.results_table.heading("param", text=reshape_text("پارامتر"))
         self.results_table.heading("calculated", text=reshape_text("محاسبه‌شده"))
         self.results_table.heading("standard", text=reshape_text("استاندارد"))
         self.results_table.heading("difference", text=reshape_text("تفاوت"))
 
-        # تنظیم فونت رنگ برای تفاوت‌ها
+        # تنظیم فونت رنگ
         self.results_table.tag_configure("less_than", foreground="red")
         self.results_table.tag_configure("greater_than", foreground="blue")
 
     def add_material_row(self):
-        """
-        اضافه کردن یک ردیف جدید برای انتخاب ماده اولیه و درصد وزنی آن
-        """
+        """اضافه کردن یک ردیف برای انتخاب ماده اولیه و درصد وزنی آن"""
         row = len(self.materials_widgets)
         material_combobox = ttk.Combobox(self.materials_frame, values=list(materials_data.keys()))
         material_combobox.grid(row=row, column=0, padx=5, pady=5)
-        material_combobox.set(list(materials_data.keys())[0])  # مقدار پیش‌فرض
+        material_combobox.set(list(materials_data.keys())[0])  # مقدار پیش‌فرض اولین ماده اولیه
 
         percentage_entry = tk.Entry(self.materials_frame)
         percentage_entry.grid(row=row, column=1, padx=5, pady=5)
@@ -1059,11 +1050,8 @@ class DietCalculatorApp:
         self.materials_widgets.append((material_combobox, percentage_entry))
 
     def calculate_diet(self):
-        """
-        محاسبه جیره بر اساس مواد اولیه و درصدهای وارد شده
-        """
+        """محاسبه جیره بر اساس مواد اولیه و درصدهای وارد شده"""
         try:
-            # دریافت گونه انتخاب‌شده
             selected_species = self.species_combobox.get()
             if selected_species not in species_data:
                 raise ValueError("گونه نامعتبر است.")
@@ -1090,123 +1078,98 @@ class DietCalculatorApp:
 
             # محاسبه جیره
             final_composition = {}
-
-            # محاسبه پارامترهای درصدی
             for material, weight in material_weights.items():
                 for param, value in materials_data[material].items():
-                    if param in self.percentage_params:
+                    if "(%)" in param:
+                        # پارامتر درصدی
                         final_composition[param] = final_composition.get(param, 0) + value * weight
+                    else:
+                        # پارامتر غیر درصدی (تبدیل به واحد مناسب)
+                        final_composition[param] = final_composition.get(param, 0) + value * weight * 1
 
-            # محاسبه پارامترهای غیر درصدی
-            for material, weight in material_weights.items():
-                for param, value in materials_data[material].items():
-                    if param in self.non_percentage_params:
-                        # تقسیم بر 1000 برای پارامترهای غیر درصدی
-                        final_composition[param] = final_composition.get(param, 0) + (value * weight) / 1000
-
-            # ذخیره جیره در پایگاه داده
-            self.save_diet_to_db(selected_species, material_weights, final_composition)
+            # مقایسه با استاندارد گونه
+            standard_data = species_data[selected_species]
+            comparison = {
+                param: {
+                    "calculated": final_composition.get(param, 0),
+                    "standard": standard_data.get(param, 0),
+                    "difference": final_composition.get(param, 0) - standard_data.get(param, 0)
+                }
+                for param in set(final_composition.keys()).union(standard_data.keys())
+            }
 
             # پاک کردن جدول قدیمی
             for item in self.results_table.get_children():
                 self.results_table.delete(item)
 
+            # مرتب‌سازی نتایج بر اساس ترتیب استاندارد
+            sorted_params = sorted(comparison.keys(), key=lambda x: self.standard_order.index(x) if x in self.standard_order else float('inf'))
+
             # نمایش نتایج در جدول
-            for param, value in final_composition.items():
-                difference = value - species_data[selected_species].get(param, 0)
-                # تعیین رنگ بر اساس تفاوت
-                tag = "less_than" if difference < 0 else "greater_than" if difference > 0 else None
-                self.results_table.insert("", "end", values=(param, round(value, 2), species_data[selected_species].get(param, 0), round(difference, 2)), tags=(tag,))
+            for param in sorted_params:
+                values = comparison[param]
+                tag = None
+                if values["difference"] < 0:
+                    tag = "less_than"
+                elif values["difference"] > 0:
+                    tag = "greater_than"
+
+                self.results_table.insert("", "end", values=(
+                    param,
+                    round(values["calculated"], 2),
+                    round(values["standard"], 2),
+                    round(values["difference"], 2)
+                ), tags=(tag,))
 
         except ValueError as e:
             messagebox.showerror("خطا", str(e))
-
-    def save_diet_to_db(self, species, material_weights, results):
-        """
-        ذخیره اطلاعات جیره در پایگاه داده
-        """
-        materials_str = ";".join([f"{material}:{weight}" for material, weight in material_weights.items()])
-        results_str = ";".join([f"{param}:{value}" for param, value in results.items()])
-        date_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        # درج اطلاعات در پایگاه داده
-        self.cursor.execute("""
-        INSERT INTO diets (species, materials, percentages, results, date)
-        VALUES (?, ?, ?, ?, ?)
-        """, (species, materials_str, materials_str, results_str, date_str))
-        self.conn.commit()
-
-    def show_saved_diets(self):
-        """
-        نمایش جیره‌های ذخیره‌شده از پایگاه داده
-        """
-        try:
-            # بازیابی داده‌ها از پایگاه داده
-            self.cursor.execute("SELECT species, materials, percentages, results, date FROM diets")
-            rows = self.cursor.fetchall()
-
-            # ایجاد پنجره جدید برای نمایش جیره‌ها
-            view_window = tk.Toplevel(self.root)
-            view_window.title("جیره‌های ذخیره‌شده")
-
-            # جدول نمایش جیره‌های ذخیره‌شده
-            saved_diets_table = ttk.Treeview(view_window, columns=("species", "materials", "percentages", "results", "date"), show="headings", height=15)
-            saved_diets_table.grid(row=0, column=0, padx=5, pady=5)
-            saved_diets_table.heading("species", text=reshape_text("گونه"))
-            saved_diets_table.heading("materials", text=reshape_text("مواد اولیه"))
-            saved_diets_table.heading("percentages", text=reshape_text("درصدها"))
-            saved_diets_table.heading("results", text=reshape_text("نتایج"))
-            saved_diets_table.heading("date", text=reshape_text("تاریخ"))
-
-            # اضافه کردن داده‌ها به جدول
-            for row in rows:
-                saved_diets_table.insert("", "end", values=row)
-
-        except sqlite3.Error as e:
-            messagebox.showerror("خطا", f"خطا در بازیابی داده‌ها: {e}")
+        # دکمه برای ذخیره به اکسل
+        tk.Button(root, text=reshape_text("ذخیره به اکسل"), command=self.export_to_excel).grid(row=4, column=0, columnspan=2, pady=10)
 
     def export_to_excel(self):
-        """
-        خروجی گرفتن داده‌های ذخیره‌شده به فایل اکسل
-        """
+        """ذخیره نتایج جدول در فایل اکسل"""
         try:
-            # بازیابی داده‌ها از پایگاه داده
-            self.cursor.execute("SELECT species, materials, percentages, results, date FROM diets")
-            rows = self.cursor.fetchall()
+            # باز کردن پنجره انتخاب مسیر ذخیره‌سازی
+            file_path = filedialog.asksaveasfilename(
+                defaultextension=".xlsx",
+                filetypes=[("Excel files", "*.xlsx")],
+                title="ذخیره فایل اکسل"
+            )
 
-            # تبدیل داده‌ها به DataFrame
-            data = pd.DataFrame(rows, columns=["گونه", "مواد اولیه", "درصدها", "نتایج", "تاریخ"])
+            # بررسی اینکه آیا کاربر مسیری انتخاب کرده است
+            if not file_path:
+                return  # اگر کاربر روی "لغو" کلیک کرده باشد
 
-            # انتخاب مسیر ذخیره فایل اکسل
-            file_name = filedialog.asksaveasfilename(defaultextension=".xlsx",
-                                                     filetypes=[("Excel files", "*.xlsx")],
-                                                     title="ذخیره فایل اکسل")
-            if not file_name:  # اگر کاربر فایل را انتخاب نکند
-                return
+            # ایجاد فایل اکسل
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.title = "Diet Results"
 
-            # ذخیره داده‌ها به فایل اکسل
-            data.to_excel(file_name, index=False, engine="openpyxl")
+            # افزودن سرستون‌ها
+            headers = ["پارامتر", "محاسبه‌شده", "استاندارد", "تفاوت"]
+            ws.append(headers)
 
-            messagebox.showinfo("موفقیت", f"داده‌ها با موفقیت به فایل اکسل ذخیره شدند.")
+            # افزودن داده‌ها از جدول
+            for item in self.results_table.get_children():
+                row = self.results_table.item(item)["values"]
+                ws.append(row)
+
+            # تنظیم استایل و تراز متن
+            for row in ws.iter_rows(min_row=1, max_row=ws.max_row, max_col=4):
+                for cell in row:
+                    cell.alignment = Alignment(horizontal="center", vertical="center")
+
+            # ذخیره فایل در مسیر انتخاب‌شده
+            wb.save(file_path)
+
+            # پیام موفقیت
+            messagebox.showinfo("ذخیره به اکسل", f"فایل با موفقیت ذخیره شد به آدرس:\n{file_path}")
         except Exception as e:
-            messagebox.showerror("خطا", f"خطا در خروجی گرفتن داده‌ها: {e}")
+            messagebox.showerror("خطا", f"خطایی در ذخیره‌سازی پیش آمد: {e}")
 
-    def clear_all_data(self):
-        """
-        حذف تمام داده‌های ذخیره‌شده در پایگاه داده
-        """
-        try:
-            # هشدار برای تأیید حذف داده‌ها
-            confirm = messagebox.askyesno("حذف داده‌ها", "آیا مطمئن هستید که می‌خواهید تمام داده‌ها را حذف کنید؟")
-            if confirm:
-                # حذف تمام داده‌ها از جدول
-                self.cursor.execute("DELETE FROM diets")
-                self.conn.commit()
-                messagebox.showinfo("موفقیت", "تمام داده‌ها با موفقیت حذف شدند.")
-        except Exception as e:
-            messagebox.showerror("خطا", f"خطا در حذف داده‌ها: {e}")
-
-
+    # سایر توابع کلاس بدون تغییر ...
+def main():
+    print("Welcome to the Diet Calculator!")
 if __name__ == "__main__":
     root = tk.Tk()
     app = DietCalculatorApp(root)
