@@ -1788,7 +1788,7 @@ class DietCalculatorApp:
         ]
 
         tk.Label(root, text=reshape_text("گونه:")).grid(row=0, column=0, padx=5, pady=5)
-        self.species_combobox = ttk.Combobox(root, values=["Seabass 60-100g (Grower)"])  # مثال
+        self.species_combobox = ttk.Combobox(root, values=["Seabass 60-100g (Grower)"])
         self.species_combobox.grid(row=0, column=1, padx=5, pady=5)
         self.species_combobox.set("")
 
@@ -1827,16 +1827,31 @@ class DietCalculatorApp:
     def open_add_material_window(self):
         add_window = tk.Toplevel(self.root)
         add_window.title("اضافه کردن ماده اولیه جدید")
-        
 
-        tk.Label(add_window, text=reshape_text("نام ماده اولیه:")).grid(row=0, column=0, padx=5, pady=5)
-        material_name_entry = tk.Entry(add_window, width=40)
+        # ایجاد کانواس و اسکرول‌بار
+        canvas = tk.Canvas(add_window)
+        scrollbar = tk.Scrollbar(add_window, orient="vertical", command=canvas.yview)
+        scrollable_frame = tk.Frame(canvas)
+
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        tk.Label(scrollable_frame, text=reshape_text("نام ماده اولیه:")).grid(row=0, column=0, padx=5, pady=5)
+        material_name_entry = tk.Entry(scrollable_frame, width=40)
         material_name_entry.grid(row=0, column=1, padx=5, pady=5)
 
         param_entries = {}
         for i, param in enumerate(self.standard_order):
-            tk.Label(add_window, text=reshape_text(param + ":")).grid(row=i+1, column=0, padx=5, pady=2)
-            entry = tk.Entry(add_window, width=20)
+            tk.Label(scrollable_frame, text=reshape_text(param + ":")).grid(row=i+1, column=0, padx=5, pady=2)
+            entry = tk.Entry(scrollable_frame, width=20)
             entry.grid(row=i+1, column=1, padx=5, pady=2)
             param_entries[param] = entry
 
@@ -1845,7 +1860,7 @@ class DietCalculatorApp:
             if not material_name:
                 messagebox.showerror("خطا", "لطفاً نام ماده اولیه را وارد کنید.")
                 return
-            
+
             try:
                 new_material = {}
                 for param, entry in param_entries.items():
@@ -1855,13 +1870,15 @@ class DietCalculatorApp:
                 save_material_to_db(material_name, new_material)
                 materials_data[material_name] = new_material
                 messagebox.showinfo("موفقیت", f"ماده '{material_name}' با موفقیت اضافه شد.")
-                
+
                 self.update_material_combobox()
                 add_window.destroy()
             except ValueError:
                 messagebox.showerror("خطا", "مقادیر وارد شده باید عددی باشند.")
 
-        tk.Button(add_window, text=reshape_text("ذخیره"), command=save_material).grid(row=len(self.standard_order)+1, column=0, columnspan=2, pady=10)
+        tk.Button(scrollable_frame, text=reshape_text("ذخیره"), command=save_material).grid(
+            row=len(self.standard_order)+1, column=0, columnspan=2, pady=10
+        )
 
     def manage_materials_window(self):
         manage_window = tk.Toplevel(self.root)
@@ -1899,7 +1916,7 @@ class DietCalculatorApp:
             combobox["values"] = new_material_list
 
     def calculate_diet(self):
-        pass  # این تابع به همان صورت قبلی باقی مانده است
+        pass
 
 
 if __name__ == "__main__":
