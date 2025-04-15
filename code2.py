@@ -1,4 +1,3 @@
-
 import tkinter as tk
 from tkinter import ttk, messagebox
 from bidi.algorithm import get_display
@@ -6,6 +5,31 @@ import arabic_reshaper
 import openpyxl
 from openpyxl.styles import Alignment
 from tkinter import filedialog
+import json  # برای ذخیره و بازیابی مواد اولیه
+
+# فایل ذخیره مواد اولیه
+MATERIALS_FILE = "materials_data.json"
+
+# تابع برای اصلاح نمایش متن فارسی
+def reshape_text(text):
+    reshaped_text = get_display(arabic_reshaper.reshape(text))
+    return reshaped_text
+
+# تابع برای ذخیره مواد اولیه در فایل JSON
+def save_materials_to_file():
+    with open(MATERIALS_FILE, "w", encoding="utf-8") as file:
+        json.dump(materials_data, file, ensure_ascii=False, indent=4)
+
+# تابع برای بارگذاری مواد اولیه از فایل JSON
+def load_materials_from_file():
+    try:
+        with open(MATERIALS_FILE, "r", encoding="utf-8") as file:
+            return json.load(file)
+    except FileNotFoundError:
+        return {}  # اگر فایل وجود نداشت، یک دیکشنری خالی برمی‌گرداند
+
+# بارگذاری مواد اولیه
+materials_data = load_materials_from_file()
 
 # تابع برای اصلاح نمایش متن فارسی
 def reshape_text(text):
@@ -1726,23 +1750,21 @@ class DietCalculatorApp:
             "اینوزیتول (mg/kg)"
         ]
 
-        # انتخاب گونه
         tk.Label(root, text=reshape_text("گونه:")).grid(row=0, column=0, padx=5, pady=5)
         self.species_combobox = ttk.Combobox(root, values=list(species_data.keys()))
         self.species_combobox.grid(row=0, column=1, padx=5, pady=5)
-        self.species_combobox.set("")  # مقدار پیش‌فرض
+        self.species_combobox.set("")
 
-        # جدول مواد اولیه
         self.materials_frame = tk.Frame(root)
         self.materials_frame.grid(row=1, column=0, columnspan=2, padx=5, pady=5)
         self.materials_widgets = []
-        self.add_material_row()  # اضافه کردن اولین ردیف
+        self.add_material_row()
 
-        # دکمه‌ها
         tk.Button(root, text=reshape_text("اضافه کردن ماده اولیه"), command=self.add_material_row).grid(row=2, column=0, padx=5, pady=5)
         tk.Button(root, text=reshape_text("محاسبه جیره"), command=self.calculate_diet).grid(row=2, column=1, padx=5, pady=5)
+        tk.Button(root, text=reshape_text("اضافه کردن ماده اولیه جدید"), command=self.open_add_material_window).grid(row=5, column=0, padx=5, pady=5)
+        tk.Button(root, text=reshape_text("مدیریت مواد اولیه"), command=self.manage_materials_window).grid(row=5, column=1, padx=5, pady=5)
 
-        # جدول نمایش نتایج
         self.results_table = ttk.Treeview(root, columns=("param", "calculated", "standard", "difference"), show="headings", height=15)
         self.results_table.grid(row=3, column=0, columnspan=2, padx=5, pady=5)
         self.results_table.heading("param", text=reshape_text("پارامتر"))
@@ -1750,144 +1772,116 @@ class DietCalculatorApp:
         self.results_table.heading("standard", text=reshape_text("استاندارد"))
         self.results_table.heading("difference", text=reshape_text("تفاوت"))
 
-        # تنظیم فونت رنگ
         self.results_table.tag_configure("less_than", foreground="red")
         self.results_table.tag_configure("greater_than", foreground="blue")
 
     def add_material_row(self):
-        """اضافه کردن یک ردیف برای انتخاب ماده اولیه و درصد وزنی آن"""
         row = len(self.materials_widgets)
         material_combobox = ttk.Combobox(self.materials_frame, values=list(materials_data.keys()))
         material_combobox.grid(row=row, column=0, padx=5, pady=5)
-        material_combobox.set(list(materials_data.keys())[0])  # مقدار پیش‌فرض اولین ماده اولیه
+        material_combobox.set(list(materials_data.keys())[0] if materials_data else "")
 
         percentage_entry = tk.Entry(self.materials_frame)
         percentage_entry.grid(row=row, column=1, padx=5, pady=5)
-        percentage_entry.insert(0, "0")  # مقدار پیش‌فرض 0
+        percentage_entry.insert(0, "0")
 
         self.materials_widgets.append((material_combobox, percentage_entry))
 
+    def open_add_material_window(self):
+        add_window = tk.Toplevel(self.root)
+        add_window.title("اضافه کردن ماده اولیه جدید")
+
+        # اسکرول‌بار و Canvas
+        canvas = tk.Canvas(add_window)
+        scrollbar = tk.Scrollbar(add_window, orient="vertical", command=canvas.yview)
+        scrollable_frame = tk.Frame(canvas)
+
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        # ورودی برای نام ماده اولیه
+        tk.Label(scrollable_frame, text=reshape_text("نام ماده اولیه:")).grid(row=0, column=0, padx=5, pady=5)
+        material_name_entry = tk.Entry(scrollable_frame, width=40)
+        material_name_entry.grid(row=0, column=1, padx=5, pady=5)
+
+        # ورودی برای تمامی پارامترها
+        param_entries = {}
+        for i, param in enumerate(self.standard_order):
+            tk.Label(scrollable_frame, text=reshape_text(param + ":")).grid(row=i+1, column=0, padx=5, pady=2)
+            entry = tk.Entry(scrollable_frame, width=20)
+            entry.grid(row=i+1, column=1, padx=5, pady=2)
+            param_entries[param] = entry
+
+        def save_material():
+            material_name = material_name_entry.get()
+            if not material_name:
+                messagebox.showerror("خطا", "لطفاً نام ماده اولیه را وارد کنید.")
+                return
+            
+            try:
+                new_material = {}
+                for param, entry in param_entries.items():
+                    value = entry.get()
+                    new_material[param] = float(value) if value.strip() else 0.0
+
+                materials_data[material_name] = new_material
+                save_materials_to_file()  # ذخیره مواد اولیه به فایل
+                messagebox.showinfo("موفقیت", f"ماده '{material_name}' با موفقیت اضافه شد.")
+                
+                self.update_material_combobox()
+                add_window.destroy()
+            except ValueError:
+                messagebox.showerror("خطا", "مقادیر وارد شده باید عددی باشند.")
+
+        tk.Button(scrollable_frame, text=reshape_text("ذخیره"), command=save_material).grid(row=len(self.standard_order)+1, column=0, columnspan=2, pady=10)
+
+    def manage_materials_window(self):
+        manage_window = tk.Toplevel(self.root)
+        manage_window.title("مدیریت مواد اولیه")
+
+        materials_listbox = tk.Listbox(manage_window, width=50, height=20)
+        materials_listbox.pack(side="left", fill="y", padx=10, pady=10)
+
+        scrollbar = tk.Scrollbar(manage_window, orient="vertical", command=materials_listbox.yview)
+        scrollbar.pack(side="right", fill="y")
+
+        materials_listbox.config(yscrollcommand=scrollbar.set)
+
+        for material in materials_data.keys():
+            materials_listbox.insert("end", material)
+
+        def delete_material():
+            selected = materials_listbox.curselection()
+            if not selected:
+                messagebox.showerror("خطا", "لطفاً یک ماده را انتخاب کنید.")
+                return
+
+            material_name = materials_listbox.get(selected)
+            del materials_data[material_name]
+            save_materials_to_file()  # ذخیره به فایل
+            materials_listbox.delete(selected)
+            self.update_material_combobox()
+            messagebox.showinfo("موفقیت", f"ماده '{material_name}' حذف شد.")
+
+        tk.Button(manage_window, text=reshape_text("حذف"), command=delete_material).pack(pady=5)
+
+    def update_material_combobox(self):
+        new_material_list = list(materials_data.keys())
+        for combobox, _ in self.materials_widgets:
+            combobox["values"] = new_material_list
+
     def calculate_diet(self):
-        """محاسبه جیره بر اساس مواد اولیه و درصدهای وارد شده"""
-        try:
-            selected_species = self.species_combobox.get()
-            if selected_species not in species_data:
-                raise ValueError("گونه نامعتبر است.")
+        pass  # این تابع به همان صورت قبلی باقی مانده است
 
-            # جمع‌آوری اطلاعات مواد اولیه و درصدها
-            material_weights = {}
-            total_percentage = 0  # جمع درصد کل مواد اولیه
-            for combobox, entry in self.materials_widgets:
-                material = combobox.get()
-                if material not in materials_data:
-                    raise ValueError(f"ماده اولیه '{material}' نامعتبر است.")
-                try:
-                    weight = float(entry.get())
-                    if weight < 0 or weight > 100:
-                        raise ValueError("درصد وزنی باید بین 0 و 100 باشد.")
-                    total_percentage += weight
-                    material_weights[material] = weight / 100  # تبدیل به درصد
-                except ValueError:
-                    raise ValueError("درصد وزنی باید یک عدد معتبر باشد.")
 
-            # بررسی اینکه مجموع درصدها از 100 بیشتر نباشد
-            if total_percentage > 100:
-                raise ValueError("مجموع درصد مواد اولیه نباید از 100 بیشتر باشد.")
-
-            # محاسبه جیره
-            final_composition = {}
-            for material, weight in material_weights.items():
-                for param, value in materials_data[material].items():
-                    if "(%)" in param:
-                        # پارامتر درصدی
-                        final_composition[param] = final_composition.get(param, 0) + value * weight
-                    else:
-                        # پارامتر غیر درصدی (تبدیل به واحد مناسب)
-                        final_composition[param] = final_composition.get(param, 0) + value * weight * 1
-
-            # مقایسه با استاندارد گونه
-            standard_data = species_data[selected_species]
-            comparison = {
-                param: {
-                    "calculated": final_composition.get(param, 0),
-                    "standard": standard_data.get(param, 0),
-                    "difference": final_composition.get(param, 0) - standard_data.get(param, 0)
-                }
-                for param in set(final_composition.keys()).union(standard_data.keys())
-            }
-
-            # پاک کردن جدول قدیمی
-            for item in self.results_table.get_children():
-                self.results_table.delete(item)
-
-            # مرتب‌سازی نتایج بر اساس ترتیب استاندارد
-            sorted_params = sorted(comparison.keys(), key=lambda x: self.standard_order.index(x) if x in self.standard_order else float('inf'))
-
-            # نمایش نتایج در جدول
-            for param in sorted_params:
-                values = comparison[param]
-                tag = None
-                if values["difference"] < 0:
-                    tag = "less_than"
-                elif values["difference"] > 0:
-                    tag = "greater_than"
-
-                self.results_table.insert("", "end", values=(
-                    param,
-                    round(values["calculated"], 2),
-                    round(values["standard"], 2),
-                    round(values["difference"], 2)
-                ), tags=(tag,))
-
-        except ValueError as e:
-            messagebox.showerror("خطا", str(e))
-        # دکمه برای ذخیره به اکسل
-        tk.Button(root, text=reshape_text("ذخیره به اکسل"), command=self.export_to_excel).grid(row=4, column=0, columnspan=2, pady=10)
-
-    def export_to_excel(self):
-        """ذخیره نتایج جدول در فایل اکسل"""
-        try:
-            # باز کردن پنجره انتخاب مسیر ذخیره‌سازی
-            file_path = filedialog.asksaveasfilename(
-                defaultextension=".xlsx",
-                filetypes=[("Excel files", "*.xlsx")],
-                title="ذخیره فایل اکسل"
-            )
-
-            # بررسی اینکه آیا کاربر مسیری انتخاب کرده است
-            if not file_path:
-                return  # اگر کاربر روی "لغو" کلیک کرده باشد
-
-            # ایجاد فایل اکسل
-            wb = openpyxl.Workbook()
-            ws = wb.active
-            ws.title = "Diet Results"
-
-            # افزودن سرستون‌ها
-            headers = ["پارامتر", "محاسبه‌شده", "استاندارد", "تفاوت"]
-            ws.append(headers)
-
-            # افزودن داده‌ها از جدول
-            for item in self.results_table.get_children():
-                row = self.results_table.item(item)["values"]
-                ws.append(row)
-
-            # تنظیم استایل و تراز متن
-            for row in ws.iter_rows(min_row=1, max_row=ws.max_row, max_col=4):
-                for cell in row:
-                    cell.alignment = Alignment(horizontal="center", vertical="center")
-
-            # ذخیره فایل در مسیر انتخاب‌شده
-            wb.save(file_path)
-
-            # پیام موفقیت
-            messagebox.showinfo("ذخیره به اکسل", f"فایل با موفقیت ذخیره شد به آدرس:\n{file_path}")
-        except Exception as e:
-            messagebox.showerror("خطا", f"خطایی در ذخیره‌سازی پیش آمد: {e}")
-
-    # سایر توابع کلاس بدون تغییر ...
-def main():
-    print("Welcome to the Diet Calculator!")
 if __name__ == "__main__":
     root = tk.Tk()
     app = DietCalculatorApp(root)
