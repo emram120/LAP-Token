@@ -2,42 +2,62 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from bidi.algorithm import get_display
 import arabic_reshaper
-import openpyxl
-from openpyxl.styles import Alignment
+import sqlite3
 from tkinter import filedialog
-import json  # برای ذخیره و بازیابی مواد اولیه
+import json  # برای مقایسه و انتقال داده‌های پیش‌فرض
 
-# فایل ذخیره مواد اولیه
-MATERIALS_FILE = "materials_data.json"
-
-# تابع برای اصلاح نمایش متن فارسی
-def reshape_text(text):
-    reshaped_text = get_display(arabic_reshaper.reshape(text))
-    return reshaped_text
-
-# تابع برای ذخیره مواد اولیه در فایل JSON
-def save_materials_to_file():
-    with open(MATERIALS_FILE, "w", encoding="utf-8") as file:
-        json.dump(materials_data, file, ensure_ascii=False, indent=4)
-
-# تابع برای بارگذاری مواد اولیه از فایل JSON
-def load_materials_from_file():
-    try:
-        with open(MATERIALS_FILE, "r", encoding="utf-8") as file:
-            return json.load(file)
-    except FileNotFoundError:
-        return {}  # اگر فایل وجود نداشت، یک دیکشنری خالی برمی‌گرداند
-
-# بارگذاری مواد اولیه
-materials_data = load_materials_from_file()
+# فایل ذخیره مواد اولیه پیش‌فرض (برای انتقال داده‌ها)
+DEFAULT_MATERIALS_FILE = "materials_data.json"
 
 # تابع برای اصلاح نمایش متن فارسی
 def reshape_text(text):
     reshaped_text = get_display(arabic_reshaper.reshape(text))
     return reshaped_text
+
+# اتصال به پایگاه داده SQLite
+DB_FILE = "materials_data.db"
+
+def init_db():
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    # ایجاد جدول مواد اولیه
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS materials (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT UNIQUE NOT NULL,
+        data TEXT NOT NULL
+    )
+    """)
+    conn.commit()
+    conn.close()
+
+def save_material_to_db(name, material_data):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("""
+    INSERT OR REPLACE INTO materials (name, data)
+    VALUES (?, ?)
+    """, (name, json.dumps(material_data, ensure_ascii=False)))
+    conn.commit()
+    conn.close()
+
+def delete_material_from_db(name):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM materials WHERE name = ?", (name,))
+    conn.commit()
+    conn.close()
+
+def load_materials_from_db():
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT name, data FROM materials")
+    rows = cursor.fetchall()
+    conn.close()
+    return {name: json.loads(data) for name, data in rows}
 
 # اطلاعات مربوط به مواد اولیه
-materials_data = {
+default_materials_data = {
   "کنجاله سویا": {
     "پروتئین خام (%)": 48,
     "لیپیدهای خام (%)": 1.5,
@@ -1701,6 +1721,23 @@ species_data = {
     }
     
 }
+def populate_default_materials():
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    for name, data in default_materials_data.items():
+        cursor.execute("""
+        INSERT OR IGNORE INTO materials (name, data)
+        VALUES (?, ?)
+        """, (name, json.dumps(data, ensure_ascii=False)))
+    conn.commit()
+    conn.close()
+
+# مقداردهی اولیه پایگاه داده و داده‌های پیش‌فرض
+init_db()
+populate_default_materials()
+
+# بارگذاری مواد اولیه از پایگاه داده
+materials_data = load_materials_from_db()
 
 class DietCalculatorApp:
     def __init__(self, root):
@@ -1751,7 +1788,7 @@ class DietCalculatorApp:
         ]
 
         tk.Label(root, text=reshape_text("گونه:")).grid(row=0, column=0, padx=5, pady=5)
-        self.species_combobox = ttk.Combobox(root, values=list(species_data.keys()))
+        self.species_combobox = ttk.Combobox(root, values=["Seabass 60-100g (Grower)"])  # مثال
         self.species_combobox.grid(row=0, column=1, padx=5, pady=5)
         self.species_combobox.set("")
 
@@ -1790,33 +1827,16 @@ class DietCalculatorApp:
     def open_add_material_window(self):
         add_window = tk.Toplevel(self.root)
         add_window.title("اضافه کردن ماده اولیه جدید")
+        
 
-        # اسکرول‌بار و Canvas
-        canvas = tk.Canvas(add_window)
-        scrollbar = tk.Scrollbar(add_window, orient="vertical", command=canvas.yview)
-        scrollable_frame = tk.Frame(canvas)
-
-        scrollable_frame.bind(
-            "<Configure>",
-            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
-        )
-
-        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
-
-        canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
-
-        # ورودی برای نام ماده اولیه
-        tk.Label(scrollable_frame, text=reshape_text("نام ماده اولیه:")).grid(row=0, column=0, padx=5, pady=5)
-        material_name_entry = tk.Entry(scrollable_frame, width=40)
+        tk.Label(add_window, text=reshape_text("نام ماده اولیه:")).grid(row=0, column=0, padx=5, pady=5)
+        material_name_entry = tk.Entry(add_window, width=40)
         material_name_entry.grid(row=0, column=1, padx=5, pady=5)
 
-        # ورودی برای تمامی پارامترها
         param_entries = {}
         for i, param in enumerate(self.standard_order):
-            tk.Label(scrollable_frame, text=reshape_text(param + ":")).grid(row=i+1, column=0, padx=5, pady=2)
-            entry = tk.Entry(scrollable_frame, width=20)
+            tk.Label(add_window, text=reshape_text(param + ":")).grid(row=i+1, column=0, padx=5, pady=2)
+            entry = tk.Entry(add_window, width=20)
             entry.grid(row=i+1, column=1, padx=5, pady=2)
             param_entries[param] = entry
 
@@ -1832,8 +1852,8 @@ class DietCalculatorApp:
                     value = entry.get()
                     new_material[param] = float(value) if value.strip() else 0.0
 
+                save_material_to_db(material_name, new_material)
                 materials_data[material_name] = new_material
-                save_materials_to_file()  # ذخیره مواد اولیه به فایل
                 messagebox.showinfo("موفقیت", f"ماده '{material_name}' با موفقیت اضافه شد.")
                 
                 self.update_material_combobox()
@@ -1841,7 +1861,7 @@ class DietCalculatorApp:
             except ValueError:
                 messagebox.showerror("خطا", "مقادیر وارد شده باید عددی باشند.")
 
-        tk.Button(scrollable_frame, text=reshape_text("ذخیره"), command=save_material).grid(row=len(self.standard_order)+1, column=0, columnspan=2, pady=10)
+        tk.Button(add_window, text=reshape_text("ذخیره"), command=save_material).grid(row=len(self.standard_order)+1, column=0, columnspan=2, pady=10)
 
     def manage_materials_window(self):
         manage_window = tk.Toplevel(self.root)
@@ -1865,8 +1885,8 @@ class DietCalculatorApp:
                 return
 
             material_name = materials_listbox.get(selected)
+            delete_material_from_db(material_name)
             del materials_data[material_name]
-            save_materials_to_file()  # ذخیره به فایل
             materials_listbox.delete(selected)
             self.update_material_combobox()
             messagebox.showinfo("موفقیت", f"ماده '{material_name}' حذف شد.")
