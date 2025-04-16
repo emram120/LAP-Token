@@ -5,24 +5,13 @@ import arabic_reshaper
 import sqlite3
 from tkinter import filedialog
 import json
+import openpyxl
+from openpyxl.styles import Alignment
+from tkinter import filedialog
 
 # فایل ذخیره مواد اولیه پیش‌فرض
 DEFAULT_MATERIALS_FILE = "materials_data.json"
-# فایل ذخیره گونه‌ها
 DEFAULT_SPECIES_FILE = "species_data.json"
-# توابع ذخیره و بارگذاری گونه‌ها از فایل
-def load_species_from_file():
-    """بارگذاری گونه‌ها از فایل JSON"""
-    try:
-        with open(DEFAULT_SPECIES_FILE, "r", encoding="utf-8") as file:
-            return json.load(file)
-    except FileNotFoundError:
-        return {}
-
-def save_species_to_file(species_data):
-    """ذخیره‌سازی گونه‌ها در فایل JSON"""
-    with open(DEFAULT_SPECIES_FILE, "w", encoding="utf-8") as file:
-        json.dump(species_data, file, ensure_ascii=False, indent=4)
 
 # فایل پایگاه داده SQLite
 DB_FILE = "materials_data.db"
@@ -115,9 +104,13 @@ def load_materials_from_db():
     rows = cursor.fetchall()
     conn.close()
     return {name: json.loads(data) for name, data in rows}
+#
+
+
 
 # پر کردن داده‌های مواد اولیه پیش‌فرض در پایگاه داده
 def populate_default_materials():
+
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     for name, data in default_materials_data.items():
@@ -127,7 +120,18 @@ def populate_default_materials():
         """, (name, json.dumps(data, ensure_ascii=False)))
     conn.commit()
     conn.close()
-
+# پر کردن داده‌های مواد اولیه پیش‌فرض در پایگاه داده
+def populate_default_species():
+    
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    for name, data in default_materials_data.items():
+        cursor.execute("""
+        INSERT OR IGNORE INTO materials (name, data)
+        VALUES (?, ?)
+        """, (name, json.dumps(data, ensure_ascii=False)))
+    conn.commit()
+    conn.close()
 # ===========================
 # داده‌های پیش‌فرض مواد اولیه
 # ===========================
@@ -1751,7 +1755,7 @@ default_materials_data = {
 
 }
 
-default_species_data = {
+species_data = {
     "Seabass 60-100g (Grower)": {
         "پروتئین خام (%)": 46,
         "لیپیدهای خام (%)": 13,
@@ -1805,24 +1809,24 @@ def populate_default_materials():
         """, (name, json.dumps(data, ensure_ascii=False)))
     conn.commit()
     conn.close()
-def populate_default_species():
+def populate_species_data():
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    for name, data in default_materials_data.items():
+    for name, data in species_data.items():
         cursor.execute("""
         INSERT OR IGNORE INTO materials (name, data)
         VALUES (?, ?)
         """, (name, json.dumps(data, ensure_ascii=False)))
     conn.commit()
     conn.close()
+
 # مقداردهی اولیه پایگاه داده و داده‌های پیش‌فرض
 init_db()
 populate_default_materials()
-populate_default_species()
+populate_species_data()
+
 # بارگذاری مواد اولیه از پایگاه داده
 materials_data = load_materials_from_db()
-species_data = load_species_from_db()
-
 class DietCalculatorApp:
     def __init__(self, root):
         self.root = root
@@ -2105,9 +2109,122 @@ class DietCalculatorApp:
         self.species_combobox["values"] = list(species_data.keys())
 
     def calculate_diet(self):
-        pass
+        """محاسبه جیره بر اساس مواد اولیه و درصدهای وارد شده"""
+        try:
+            selected_species = self.species_combobox.get()
+            if selected_species not in species_data:
+                raise ValueError("گونه نامعتبر است.")
 
+            # جمع‌آوری اطلاعات مواد اولیه و درصدها
+            material_weights = {}
+            total_percentage = 0  # جمع درصد کل مواد اولیه
+            for combobox, entry in self.materials_widgets:
+                material = combobox.get()
+                if material not in materials_data:
+                    raise ValueError(f"ماده اولیه '{material}' نامعتبر است.")
+                try:
+                    weight = float(entry.get())
+                    if weight < 0 or weight > 100:
+                        raise ValueError("درصد وزنی باید بین 0 و 100 باشد.")
+                    total_percentage += weight
+                    material_weights[material] = weight / 100  # تبدیل به درصد
+                except ValueError:
+                    raise ValueError("درصد وزنی باید یک عدد معتبر باشد.")
 
+            # بررسی اینکه مجموع درصدها از 100 بیشتر نباشد
+            if total_percentage > 100:
+                raise ValueError("مجموع درصد مواد اولیه نباید از 100 بیشتر باشد.")
+
+            # محاسبه جیره
+            final_composition = {}
+            for material, weight in material_weights.items():
+                for param, value in materials_data[material].items():
+                    if "(%)" in param:
+                        # پارامتر درصدی
+                        final_composition[param] = final_composition.get(param, 0) + value * weight
+                    else:
+                        # پارامتر غیر درصدی (تبدیل به واحد مناسب)
+                        final_composition[param] = final_composition.get(param, 0) + value * weight * 1
+
+            # مقایسه با استاندارد گونه
+            standard_data = species_data[selected_species]
+            comparison = {
+                param: {
+                    "calculated": final_composition.get(param, 0),
+                    "standard": standard_data.get(param, 0),
+                    "difference": final_composition.get(param, 0) - standard_data.get(param, 0)
+                }
+                for param in set(final_composition.keys()).union(standard_data.keys())
+            }
+
+            # پاک کردن جدول قدیمی
+            for item in self.results_table.get_children():
+                self.results_table.delete(item)
+
+            # مرتب‌سازی نتایج بر اساس ترتیب استاندارد
+            sorted_params = sorted(comparison.keys(), key=lambda x: self.standard_order.index(x) if x in self.standard_order else float('inf'))
+
+            # نمایش نتایج در جدول
+            for param in sorted_params:
+                values = comparison[param]
+                tag = None
+                if values["difference"] < 0:
+                    tag = "less_than"
+                elif values["difference"] > 0:
+                    tag = "greater_than"
+
+                self.results_table.insert("", "end", values=(
+                    param,
+                    round(values["calculated"], 2),
+                    round(values["standard"], 2),
+                    round(values["difference"], 2)
+                ), tags=(tag,))
+
+        except ValueError as e:
+            messagebox.showerror("خطا", str(e))
+        # دکمه برای ذخیره به اکسل
+        tk.Button(root, text=reshape_text("ذخیره به اکسل"), command=self.export_to_excel).grid(row=4, column=0, columnspan=2, pady=10)
+
+    def export_to_excel(self):
+        """ذخیره نتایج جدول در فایل اکسل"""
+        try:
+            # باز کردن پنجره انتخاب مسیر ذخیره‌سازی
+            file_path = filedialog.asksaveasfilename(
+                defaultextension=".xlsx",
+                filetypes=[("Excel files", "*.xlsx")],
+                title="ذخیره فایل اکسل"
+            )
+
+            # بررسی اینکه آیا کاربر مسیری انتخاب کرده است
+            if not file_path:
+                return  # اگر کاربر روی "لغو" کلیک کرده باشد
+
+            # ایجاد فایل اکسل
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.title = "Diet Results"
+
+            # افزودن سرستون‌ها
+            headers = ["پارامتر", "محاسبه‌شده", "استاندارد", "تفاوت"]
+            ws.append(headers)
+
+            # افزودن داده‌ها از جدول
+            for item in self.results_table.get_children():
+                row = self.results_table.item(item)["values"]
+                ws.append(row)
+
+            # تنظیم استایل و تراز متن
+            for row in ws.iter_rows(min_row=1, max_row=ws.max_row, max_col=4):
+                for cell in row:
+                    cell.alignment = Alignment(horizontal="center", vertical="center")
+
+            # ذخیره فایل در مسیر انتخاب‌شده
+            wb.save(file_path)
+
+            # پیام موفقیت
+            messagebox.showinfo("ذخیره به اکسل", f"فایل با موفقیت ذخیره شد به آدرس:\n{file_path}")
+        except Exception as e:
+            messagebox.showerror("خطا", f"خطایی در ذخیره‌سازی پیش آمد: {e}")
 if __name__ == "__main__":
     root = tk.Tk()
     app = DietCalculatorApp(root)
