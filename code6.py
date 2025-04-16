@@ -30,6 +30,41 @@ def init_db():
     """)
     conn.commit()
     conn.close()
+    # پایگاه داده گونه جدید
+def save_species_to_db(name, species_data):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("""
+    INSERT OR REPLACE INTO species (name, data)
+    VALUES (?, ?)
+    """, (name, json.dumps(species_data, ensure_ascii=False)))
+    conn.commit()
+    conn.close()
+    # تابع ذخیره گونه
+def save_species_to_db(name, species_data):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("""
+    INSERT OR REPLACE INTO species (name, data)
+    VALUES (?, ?)
+    """, (name, json.dumps(species_data, ensure_ascii=False)))
+    conn.commit()
+    conn.close()
+    # تابع حذف گونه
+def delete_species_from_db(name):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM species WHERE name = ?", (name,))
+    conn.commit()
+    conn.close()
+    # بارگذاری گونه
+def load_species_from_db():
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT name, data FROM species")
+    rows = cursor.fetchall()
+    conn.close()
+    return {name: json.loads(data) for name, data in rows}
 
 def save_material_to_db(name, material_data):
     conn = sqlite3.connect(DB_FILE)
@@ -1787,23 +1822,30 @@ class DietCalculatorApp:
             "اینوزیتول (mg/kg)"
         ]
 
+        # بخش گونه
         tk.Label(root, text=reshape_text("گونه:")).grid(row=0, column=0, padx=5, pady=5)
-        self.species_combobox = ttk.Combobox(root, values=["Seabass 60-100g (Grower)"])
+        self.species_combobox = ttk.Combobox(root, values=list(species_data.keys()))
         self.species_combobox.grid(row=0, column=1, padx=5, pady=5)
         self.species_combobox.set("")
 
+        # دکمه‌های مربوط به گونه
+        tk.Button(root, text=reshape_text("اضافه کردن گونه جدید"), command=self.open_add_species_window).grid(row=0, column=2, padx=5, pady=5)
+        tk.Button(root, text=reshape_text("مدیریت گونه‌ها"), command=self.manage_species_window).grid(row=0, column=3, padx=5, pady=5)
+
+        # بخش مواد اولیه
         self.materials_frame = tk.Frame(root)
-        self.materials_frame.grid(row=1, column=0, columnspan=2, padx=5, pady=5)
+        self.materials_frame.grid(row=1, column=0, columnspan=4, padx=5, pady=5)
         self.materials_widgets = []
         self.add_material_row()
 
         tk.Button(root, text=reshape_text("اضافه کردن ماده اولیه"), command=self.add_material_row).grid(row=2, column=0, padx=5, pady=5)
         tk.Button(root, text=reshape_text("محاسبه جیره"), command=self.calculate_diet).grid(row=2, column=1, padx=5, pady=5)
-        tk.Button(root, text=reshape_text("اضافه کردن ماده اولیه جدید"), command=self.open_add_material_window).grid(row=5, column=0, padx=5, pady=5)
-        tk.Button(root, text=reshape_text("مدیریت مواد اولیه"), command=self.manage_materials_window).grid(row=5, column=1, padx=5, pady=5)
+        tk.Button(root, text=reshape_text("اضافه کردن ماده اولیه جدید"), command=self.open_add_material_window).grid(row=2, column=2, padx=5, pady=5)
+        tk.Button(root, text=reshape_text("مدیریت مواد اولیه"), command=self.manage_materials_window).grid(row=2, column=3, padx=5, pady=5)
 
+        # جدول نتایج
         self.results_table = ttk.Treeview(root, columns=("param", "calculated", "standard", "difference"), show="headings", height=15)
-        self.results_table.grid(row=3, column=0, columnspan=2, padx=5, pady=5)
+        self.results_table.grid(row=3, column=0, columnspan=4, padx=5, pady=5)
         self.results_table.heading("param", text=reshape_text("پارامتر"))
         self.results_table.heading("calculated", text=reshape_text("محاسبه‌شده"))
         self.results_table.heading("standard", text=reshape_text("استاندارد"))
@@ -1910,10 +1952,99 @@ class DietCalculatorApp:
 
         tk.Button(manage_window, text=reshape_text("حذف"), command=delete_material).pack(pady=5)
 
+    def open_add_species_window(self):
+        add_window = tk.Toplevel(self.root)
+        add_window.title("اضافه کردن گونه جدید")
+
+        # ایجاد کانواس و اسکرول‌بار
+        canvas = tk.Canvas(add_window)
+        scrollbar = tk.Scrollbar(add_window, orient="vertical", command=canvas.yview)
+        scrollable_frame = tk.Frame(canvas)
+
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        tk.Label(scrollable_frame, text=reshape_text("نام گونه:")).grid(row=0, column=0, padx=5, pady=5)
+        species_name_entry = tk.Entry(scrollable_frame, width=40)
+        species_name_entry.grid(row=0, column=1, padx=5, pady=5)
+
+        param_entries = {}
+        for i, param in enumerate(self.standard_order):
+            tk.Label(scrollable_frame, text=reshape_text(param + ":")).grid(row=i+1, column=0, padx=5, pady=2)
+            entry = tk.Entry(scrollable_frame, width=20)
+            entry.grid(row=i+1, column=1, padx=5, pady=2)
+            param_entries[param] = entry
+
+        def save_species():
+            species_name = species_name_entry.get()
+            if not species_name:
+                messagebox.showerror("خطا", "لطفاً نام گونه را وارد کنید.")
+                return
+
+            try:
+                new_species = {}
+                for param, entry in param_entries.items():
+                    value = entry.get()
+                    new_species[param] = float(value) if value.strip() else 0.0
+
+                save_species_to_db(species_name, new_species)
+                species_data[species_name] = new_species
+                messagebox.showinfo("موفقیت", f"گونه '{species_name}' با موفقیت اضافه شد.")
+
+                self.update_species_combobox()
+                add_window.destroy()
+            except ValueError:
+                messagebox.showerror("خطا", "مقادیر وارد شده باید عددی باشند.")
+
+        tk.Button(scrollable_frame, text=reshape_text("ذخیره"), command=save_species).grid(
+            row=len(self.standard_order)+1, column=0, columnspan=2, pady=10
+        )
+
+    def manage_species_window(self):
+        manage_window = tk.Toplevel(self.root)
+        manage_window.title("مدیریت گونه‌ها")
+
+        species_listbox = tk.Listbox(manage_window, width=50, height=20)
+        species_listbox.pack(side="left", fill="y", padx=10, pady=10)
+
+        scrollbar = tk.Scrollbar(manage_window, orient="vertical", command=species_listbox.yview)
+        scrollbar.pack(side="right", fill="y")
+
+        species_listbox.config(yscrollcommand=scrollbar.set)
+
+        for species in species_data.keys():
+            species_listbox.insert("end", species)
+
+        def delete_species():
+            selected = species_listbox.curselection()
+            if not selected:
+                messagebox.showerror("خطا", "لطفاً یک گونه را انتخاب کنید.")
+                return
+
+            species_name = species_listbox.get(selected)
+            delete_species_from_db(species_name)
+            del species_data[species_name]
+            species_listbox.delete(selected)
+            self.update_species_combobox()
+            messagebox.showinfo("موفقیت", f"گونه '{species_name}' حذف شد.")
+
+        tk.Button(manage_window, text=reshape_text("حذف"), command=delete_species).pack(pady=5)
+
     def update_material_combobox(self):
         new_material_list = list(materials_data.keys())
         for combobox, _ in self.materials_widgets:
             combobox["values"] = new_material_list
+
+    def update_species_combobox(self):
+        self.species_combobox["values"] = list(species_data.keys())
 
     def calculate_diet(self):
         pass
