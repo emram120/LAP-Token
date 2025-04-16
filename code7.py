@@ -4,19 +4,40 @@ from bidi.algorithm import get_display
 import arabic_reshaper
 import sqlite3
 from tkinter import filedialog
-import json  # برای مقایسه و انتقال داده‌های پیش‌فرض
+import json
 
-# فایل ذخیره مواد اولیه پیش‌فرض (برای انتقال داده‌ها)
+# فایل ذخیره مواد اولیه پیش‌فرض
 DEFAULT_MATERIALS_FILE = "materials_data.json"
+# فایل ذخیره گونه‌ها
+DEFAULT_SPECIES_FILE = "species_data.json"
+# توابع ذخیره و بارگذاری گونه‌ها از فایل
+def load_species_from_file():
+    """بارگذاری گونه‌ها از فایل JSON"""
+    try:
+        with open(DEFAULT_SPECIES_FILE, "r", encoding="utf-8") as file:
+            return json.load(file)
+    except FileNotFoundError:
+        return {}
 
-# تابع برای اصلاح نمایش متن فارسی
+def save_species_to_file(species_data):
+    """ذخیره‌سازی گونه‌ها در فایل JSON"""
+    with open(DEFAULT_SPECIES_FILE, "w", encoding="utf-8") as file:
+        json.dump(species_data, file, ensure_ascii=False, indent=4)
+
+# فایل پایگاه داده SQLite
+DB_FILE = "materials_data.db"
+DB_FILE = "species_data.db"
+
+# ===========================
+# تابع اصلاح نمایش متن فارسی
+# ===========================
 def reshape_text(text):
     reshaped_text = get_display(arabic_reshaper.reshape(text))
     return reshaped_text
 
-# اتصال به پایگاه داده SQLite
-DB_FILE = "materials_data.db"
-
+# ===========================
+# تنظیمات پایگاه داده SQLite
+# ===========================
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
@@ -28,9 +49,18 @@ def init_db():
         data TEXT NOT NULL
     )
     """)
+    # ایجاد جدول گونه‌ها
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS species (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT UNIQUE NOT NULL,
+        data TEXT NOT NULL
+    )
+    """)
     conn.commit()
     conn.close()
-    # پایگاه داده گونه جدید
+
+# ذخیره گونه‌ها در پایگاه داده
 def save_species_to_db(name, species_data):
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
@@ -40,24 +70,16 @@ def save_species_to_db(name, species_data):
     """, (name, json.dumps(species_data, ensure_ascii=False)))
     conn.commit()
     conn.close()
-    # تابع ذخیره گونه
-def save_species_to_db(name, species_data):
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("""
-    INSERT OR REPLACE INTO species (name, data)
-    VALUES (?, ?)
-    """, (name, json.dumps(species_data, ensure_ascii=False)))
-    conn.commit()
-    conn.close()
-    # تابع حذف گونه
+
+# حذف گونه از پایگاه داده
 def delete_species_from_db(name):
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute("DELETE FROM species WHERE name = ?", (name,))
     conn.commit()
     conn.close()
-    # بارگذاری گونه
+
+# بارگذاری گونه‌ها از پایگاه داده
 def load_species_from_db():
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
@@ -66,6 +88,7 @@ def load_species_from_db():
     conn.close()
     return {name: json.loads(data) for name, data in rows}
 
+# ذخیره مواد اولیه در پایگاه داده
 def save_material_to_db(name, material_data):
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
@@ -76,6 +99,7 @@ def save_material_to_db(name, material_data):
     conn.commit()
     conn.close()
 
+# حذف مواد اولیه از پایگاه داده
 def delete_material_from_db(name):
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
@@ -83,6 +107,7 @@ def delete_material_from_db(name):
     conn.commit()
     conn.close()
 
+# بارگذاری مواد اولیه از پایگاه داده
 def load_materials_from_db():
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
@@ -91,7 +116,21 @@ def load_materials_from_db():
     conn.close()
     return {name: json.loads(data) for name, data in rows}
 
-# اطلاعات مربوط به مواد اولیه
+# پر کردن داده‌های مواد اولیه پیش‌فرض در پایگاه داده
+def populate_default_materials():
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    for name, data in default_materials_data.items():
+        cursor.execute("""
+        INSERT OR IGNORE INTO materials (name, data)
+        VALUES (?, ?)
+        """, (name, json.dumps(data, ensure_ascii=False)))
+    conn.commit()
+    conn.close()
+
+# ===========================
+# داده‌های پیش‌فرض مواد اولیه
+# ===========================
 default_materials_data = {
   "کنجاله سویا": {
     "پروتئین خام (%)": 48,
@@ -1712,7 +1751,7 @@ default_materials_data = {
 
 }
 
-species_data = {
+default_species_data = {
     "Seabass 60-100g (Grower)": {
         "پروتئین خام (%)": 46,
         "لیپیدهای خام (%)": 13,
@@ -1766,13 +1805,23 @@ def populate_default_materials():
         """, (name, json.dumps(data, ensure_ascii=False)))
     conn.commit()
     conn.close()
-
+def populate_default_species():
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    for name, data in default_materials_data.items():
+        cursor.execute("""
+        INSERT OR IGNORE INTO materials (name, data)
+        VALUES (?, ?)
+        """, (name, json.dumps(data, ensure_ascii=False)))
+    conn.commit()
+    conn.close()
 # مقداردهی اولیه پایگاه داده و داده‌های پیش‌فرض
 init_db()
 populate_default_materials()
-
+populate_default_species()
 # بارگذاری مواد اولیه از پایگاه داده
 materials_data = load_materials_from_db()
+species_data = load_species_from_db()
 
 class DietCalculatorApp:
     def __init__(self, root):
