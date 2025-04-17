@@ -11,11 +11,11 @@ from tkinter import filedialog
 
 # فایل ذخیره مواد اولیه پیش‌فرض
 DEFAULT_MATERIALS_FILE = "materials_data.json"
-DEFAULT_SPECIES_FILE = "species_data.json"
+
 
 # فایل پایگاه داده SQLite
 DB_FILE = "materials_data.db"
-DB_FILE = "species_data.db"
+
 
 # ===========================
 # تابع اصلاح نمایش متن فارسی
@@ -2173,21 +2173,11 @@ def populate_default_materials():
         """, (name, json.dumps(data, ensure_ascii=False)))
     conn.commit()
     conn.close()
-def populate_species_data():
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    for name, data in species_data.items():
-        cursor.execute("""
-        INSERT OR IGNORE INTO materials (name, data)
-        VALUES (?, ?)
-        """, (name, json.dumps(data, ensure_ascii=False)))
-    conn.commit()
-    conn.close()
+
 
 # مقداردهی اولیه پایگاه داده و داده‌های پیش‌فرض
 init_db()
 populate_default_materials()
-populate_species_data()
 
 # بارگذاری مواد اولیه از پایگاه داده
 materials_data = load_materials_from_db()
@@ -2243,8 +2233,8 @@ class DietCalculatorApp:
         self.species_data = load_species_from_db()
 
         # بخش گونه
-        tk.Label(root, text=reshape_text("گونه:")).grid(row=0, column=0, padx=10, pady=10)
-        self.species_combobox = ttk.Combobox(root, values=list(species_data.keys()))
+        tk.Label(root, text=reshape_text("گونه")).grid(row=0, column=0, padx=10, pady=10)
+        self.species_combobox = ttk.Combobox(root, values=list(species_data.keys()), width=30)
         self.species_combobox.grid(row=0, column=1, padx=10, pady=10)
         self.species_combobox.set("")
 
@@ -2278,11 +2268,11 @@ class DietCalculatorApp:
         self.update_species_combobox()
 
     def update_species_combobox(self):
-        self.species_combobox["values"] = list(self.species_data.keys())
+        self.species_combobox["values"] = list(self.species_data.keys(), width=50)
 
     def add_material_row(self):
         row = len(self.materials_widgets)
-        material_combobox = ttk.Combobox(self.materials_frame, values=list(materials_data.keys()))
+        material_combobox = ttk.Combobox(self.materials_frame, values=list(materials_data.keys()), width=30)
         material_combobox.grid(row=row, column=0, padx=5, pady=5)
         material_combobox.set(list(materials_data.keys())[0] if materials_data else "")
 
@@ -2313,13 +2303,13 @@ class DietCalculatorApp:
         scrollbar.pack(side="right", fill="y")
 
         tk.Label(scrollable_frame, text=reshape_text("نام ماده اولیه:")).grid(row=0, column=0, padx=5, pady=5)
-        material_name_entry = tk.Entry(scrollable_frame, width=40)
+        material_name_entry = tk.Entry(scrollable_frame, width=80)
         material_name_entry.grid(row=0, column=1, padx=5, pady=5)
 
         param_entries = {}
         for i, param in enumerate(self.standard_order):
             tk.Label(scrollable_frame, text=reshape_text(param + ":")).grid(row=i+1, column=0, padx=5, pady=2)
-            entry = tk.Entry(scrollable_frame, width=20)
+            entry = tk.Entry(scrollable_frame, width=80)
             entry.grid(row=i+1, column=1, padx=5, pady=2)
             param_entries[param] = entry
 
@@ -2352,7 +2342,7 @@ class DietCalculatorApp:
         manage_window = tk.Toplevel(self.root)
         manage_window.title("مدیریت مواد اولیه")
 
-        materials_listbox = tk.Listbox(manage_window, width=50, height=20)
+        materials_listbox = tk.Listbox(manage_window, width=80, height=20)
         materials_listbox.pack(side="left", fill="y", padx=10, pady=10)
 
         scrollbar = tk.Scrollbar(manage_window, orient="vertical", command=materials_listbox.yview)
@@ -2399,13 +2389,13 @@ class DietCalculatorApp:
         scrollbar.pack(side="right", fill="y")
 
         tk.Label(scrollable_frame, text=reshape_text("نام گونه:")).grid(row=0, column=0, padx=5, pady=5)
-        species_name_entry = tk.Entry(scrollable_frame, width=40)
+        species_name_entry = tk.Entry(scrollable_frame, width=80)
         species_name_entry.grid(row=0, column=1, padx=5, pady=5)
 
         param_entries = {}
         for i, param in enumerate(self.standard_order):
             tk.Label(scrollable_frame, text=reshape_text(param + ":")).grid(row=i+1, column=0, padx=5, pady=2)
-            entry = tk.Entry(scrollable_frame, width=20)
+            entry = tk.Entry(scrollable_frame, width=50)
             entry.grid(row=i+1, column=1, padx=5, pady=2)
             param_entries[param] = entry
 
@@ -2438,7 +2428,7 @@ class DietCalculatorApp:
         manage_window = tk.Toplevel(self.root)
         manage_window.title("مدیریت گونه‌ها")
 
-        species_listbox = tk.Listbox(manage_window, width=50, height=20)
+        species_listbox = tk.Listbox(manage_window, width=80, height=50)
         species_listbox.pack(side="left", fill="y", padx=10, pady=10)
 
         scrollbar = tk.Scrollbar(manage_window, orient="vertical", command=species_listbox.yview)
